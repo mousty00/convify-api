@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/")
+@RequestMapping("/api")
 public class YouTubeController {
 
     private final YouTubeService youTubeService;
