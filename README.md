@@ -39,6 +39,7 @@ Built on the bleeding edge of Java and Spring technology, it offers a rock-solid
   * **JDK 17+** (For compilation—targeting Java 25 runtime environment)
   * **Maven**
   * **`yt-dlp`** (Must be installed and in your system's PATH)
+  * **`ffmpeg`** (Must be installed and in your system's PATH)
 
 ### Configuration
 
