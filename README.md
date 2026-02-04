@@ -43,10 +43,66 @@ Built on the bleeding edge of Java and Spring technology, it offers a rock-solid
 
 ### Configuration
 
-Ensure your `application.properties` defines the download location:
+Ensure your `application.properties` is defined:
 
 ```properties
-app.download.dir=/tmp/yt-downloads
+
+# Application Configuration
+spring.application.name=convify-api
+server.port=8080
+server.url=http://localhost:8080
+
+# YouTube API Configuration
+youtube.api.key=${YOUTUBE_API_KEY}
+youtube.api.application-name=Convify
+
+# Download Configuration
+app.download.dir=${DOWNLOAD_DIR}
+youtube.download.max-concurrent=3
+youtube.download.min-disk-space-gb=1
+youtube.download.file-retention-hours=24
+youtube.download.cleanup-cron=0 0 2 * * *
+
+# Rate Limiting
+youtube.rate-limit.capacity=10
+youtube.rate-limit.refill-tokens=10
+youtube.rate-limit.refill-duration-minutes=1
+
+# Actuator Configuration (Health & Metrics)
+management.endpoints.web.exposure.include=health,metrics,info,prometheus
+management.endpoint.health.show-details=when-authorized
+management.health.defaults.enabled=true
+management.prometheus.metrics.export.enabled=true
+
+# Cache Configuration
+spring.cache.type=caffeine
+spring.cache.caffeine.spec=maximumSize=1000,expireAfterWrite=24h
+
+# Thread Pool Configuration
+spring.task.execution.pool.core-size=4
+spring.task.execution.pool.max-size=10
+spring.task.execution.pool.queue-capacity=100
+spring.task.scheduling.pool.size=2
+
+# Jackson Configuration
+spring.jackson.serialization.indent-output=true
+
+# Error Handling
+spring.web.error.include-stacktrace=never
+spring.web.error.include-exception=false
+
+# Validation
+spring.validation.method.adapt-constraint-violations=true
+
+# Swagger/OpenAPI
+springdoc.api-docs.path=/v3/api-docs
+springdoc.swagger-ui.path=/swagger-ui.html
+springdoc.swagger-ui.enabled=true
+
+# Security
+# spring.security.user.name=admin
+# spring.security.user.password=${ADMIN_PASSWORD}
+
 ```
 
 ### Build & Execute
