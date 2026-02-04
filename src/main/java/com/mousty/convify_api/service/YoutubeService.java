@@ -1,48 +1,42 @@
-package com.mousty.convify_api.controller;
+package com.mousty.convify_api.service;
 
 import com.mousty.convify_api.dto.request.ConvertRequest;
 import com.mousty.convify_api.dto.request.FilepathRequest;
 import com.mousty.convify_api.model.ConversionJob;
-import com.mousty.convify_api.service.ConversionManagerService;
-import com.mousty.convify_api.service.FileStorageService;
 import io.github.bucket4j.Bucket;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
-import org.springframework.http.*;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.stereotype.Service;
 
 import java.nio.file.Path;
 import java.util.Map;
-import java.util.UUID;
 
-@RestController
-@RequestMapping("/api/v1")
-@Tag(name = "YouTube Converter", description = "API for converting YouTube videos")
-public class YouTubeController {
+@Service
+public class YoutubeService {
 
-    private static final Logger log = LoggerFactory.getLogger(YouTubeController.class);
+    private final static Logger log = LoggerFactory.getLogger(YoutubeService.class);
 
     private final ConversionManagerService conversionManager;
     private final FileStorageService storageService;
     private final Bucket rateLimitBucket;
 
-    public YouTubeController(ConversionManagerService conversionManager,
-                             FileStorageService storageService,
-                             Bucket rateLimitBucket) {
+    public YoutubeService(
+        ConversionManagerService conversionManager,
+        FileStorageService storageService,
+        Bucket rateLimitBucket
+    ){
         this.conversionManager = conversionManager;
         this.storageService = storageService;
         this.rateLimitBucket = rateLimitBucket;
     }
 
-    @PostMapping("/convert/async")
-    @Operation(summary = "Start asynchronous video conversion")
-    public ResponseEntity<?> convertAsync(@Valid @RequestBody ConvertRequest request) {
+    public ResponseEntity<?> convertAsync(ConvertRequest request) {
         if (!rateLimitBucket.tryConsume(1)) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
                     .body(Map.of("error", "Rate limit exceeded"));
@@ -57,15 +51,11 @@ public class YouTubeController {
         ));
     }
 
-    @GetMapping("/convert/status/{jobId}")
-    @Operation(summary = "Get conversion job status")
-    public ResponseEntity<ConversionJob> getStatus(@PathVariable String jobId) {
+    public ResponseEntity<ConversionJob> getStatus(String jobId) {
         return ResponseEntity.ok(conversionManager.getStatus(jobId));
     }
 
-    @PostMapping("/download")
-    @Operation(summary = "Download converted file")
-    public ResponseEntity<Resource> download(@Valid @RequestBody FilepathRequest request) {
+    public ResponseEntity<Resource> download(FilepathRequest request) {
         try {
             Path filePath = storageService.validatePath(request.filepath());
             Resource resource = new FileSystemResource(filePath);
@@ -87,7 +77,6 @@ public class YouTubeController {
         }
     }
 
-    @GetMapping("/health")
     public ResponseEntity<?> health() {
         return ResponseEntity.ok(Map.of("status", "UP"));
     }
