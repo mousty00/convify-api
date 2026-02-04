@@ -2,50 +2,93 @@ package com.mousty.convify_api.controller;
 
 import com.mousty.convify_api.dto.request.ConvertRequest;
 import com.mousty.convify_api.dto.request.FilepathRequest;
-import com.mousty.convify_api.service.YouTubeService;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.mousty.convify_api.model.ConversionJob;
+import com.mousty.convify_api.service.ConversionManagerService;
+import com.mousty.convify_api.service.FileStorageService;
+import io.github.bucket4j.Bucket;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
+import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 
+import java.nio.file.Path;
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
-@RequestMapping("/api")
+@RequestMapping("/api/v1")
+@Tag(name = "YouTube Converter", description = "API for converting YouTube videos")
 public class YouTubeController {
 
-    private final YouTubeService youTubeService;
+    private static final Logger log = LoggerFactory.getLogger(YouTubeController.class);
 
-    @Autowired
-    public YouTubeController(YouTubeService youTubeService) {
-        this.youTubeService = youTubeService;
+    private final ConversionManagerService conversionManager;
+    private final FileStorageService storageService;
+    private final Bucket rateLimitBucket;
+
+    public YouTubeController(ConversionManagerService conversionManager,
+                             FileStorageService storageService,
+                             Bucket rateLimitBucket) {
+        this.conversionManager = conversionManager;
+        this.storageService = storageService;
+        this.rateLimitBucket = rateLimitBucket;
     }
 
-    @PostMapping("/convert")
-    public ResponseEntity<?> convert(@RequestBody ConvertRequest request) throws Exception {
-        return ResponseEntity.ok().body(
-                youTubeService.convertAndPrepareResponse(
-                        request.url(),
-                        request.format()
-                )
-        );
+    @PostMapping("/convert/async")
+    @Operation(summary = "Start asynchronous video conversion")
+    public ResponseEntity<?> convertAsync(@Valid @RequestBody ConvertRequest request) {
+        if (!rateLimitBucket.tryConsume(1)) {
+            return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                    .body(Map.of("error", "Rate limit exceeded"));
+        }
+
+        String jobId = conversionManager.startConversion(request.url(), request.format());
+
+        return ResponseEntity.accepted().body(Map.of(
+                "jobId", jobId,
+                "status", "pending",
+                "message", "Conversion started. Check status at /convert/status/" + jobId
+        ));
     }
 
+    @GetMapping("/convert/status/{jobId}")
+    @Operation(summary = "Get conversion job status")
+    public ResponseEntity<ConversionJob> getStatus(@PathVariable String jobId) {
+        return ResponseEntity.ok(conversionManager.getStatus(jobId));
+    }
 
     @PostMapping("/download")
-    public ResponseEntity<?> download(@RequestBody FilepathRequest request) throws Exception {
+    @Operation(summary = "Download converted file")
+    public ResponseEntity<Resource> download(@Valid @RequestBody FilepathRequest request) {
+        try {
+            Path filePath = storageService.validatePath(request.filepath());
+            Resource resource = new FileSystemResource(filePath);
 
-        Map<String, Object> downloadData = youTubeService.getDownloadData(request.filepath());
+            if (!resource.exists()) {
+                return ResponseEntity.notFound().build();
+            }
 
-        Resource resource = (Resource) downloadData.get("resource");
-        String filename = (String) downloadData.get("filename");
-        String contentType = (String) downloadData.get("contentType");
+            String contentType = request.filepath().toLowerCase().endsWith(".mp3")
+                    ? "audio/mpeg" : "video/mp4";
 
-        return ResponseEntity.ok()
-                .contentType(MediaType.parseMediaType(contentType))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
-                .body(resource);
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType(contentType))
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filePath.getFileName() + "\"")
+                    .body(resource);
+        } catch (SecurityException e) {
+            log.warn("Security violation: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+    }
+
+    @GetMapping("/health")
+    public ResponseEntity<?> health() {
+        return ResponseEntity.ok(Map.of("status", "UP"));
     }
 }

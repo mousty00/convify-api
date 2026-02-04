@@ -1,65 +1,99 @@
 package com.mousty.convify_api.exception;
 
-import com.mousty.convify_api.dto.response.ErrorMessageResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.ControllerAdvice;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
-import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.io.FileNotFoundException;
+import java.util.HashMap;
+import java.util.Map;
 
-@ControllerAdvice
+@RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
     /**
-     * Handles IllegalArgumentException (400 BAD REQUEST).
+     * Handle validation errors
+     */
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<?> handleValidationExceptions(MethodArgumentNotValidException ex) {
+        Map<String, String> errors = new HashMap<>();
+
+        ex.getBindingResult().getAllErrors().forEach((error) -> {
+            String fieldName = ((FieldError) error).getField();
+            String errorMessage = error.getDefaultMessage();
+            errors.put(fieldName, errorMessage);
+        });
+
+        log.warn("Validation failed: {}", errors);
+
+        return ResponseEntity.badRequest()
+                .body(Map.of(
+                        "error", "Validation failed",
+                        "message", "Please check your input",
+                        "details", errors
+                ));
+    }
+
+    /**
+     * Handle illegal argument exceptions
      */
     @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<?> handleValidationExceptions(IllegalArgumentException ex) {
-        final HttpStatus status = HttpStatus.BAD_REQUEST;
+    public ResponseEntity<?> handleIllegalArgumentException(IllegalArgumentException ex) {
+        log.warn("Illegal argument: {}", ex.getMessage());
 
-        ErrorMessageResponse error = new ErrorMessageResponse(
-                "validation_error",
-                ex.getMessage(),
-                status.value()
-        );
-        return new ResponseEntity<>(error, status);
+        return ResponseEntity.badRequest()
+                .body(Map.of(
+                        "error", "Invalid request",
+                        "message", ex.getMessage()
+                ));
     }
 
     /**
-     * Handles FileNotFoundException (404 NOT FOUND).
+     * Handle file not found exceptions
      */
     @ExceptionHandler(FileNotFoundException.class)
-    public ResponseEntity<?> handleFileNotFoundException() {
-        final HttpStatus status = HttpStatus.NOT_FOUND;
+    public ResponseEntity<?> handleFileNotFoundException(FileNotFoundException ex) {
+        log.warn("File not found: {}", ex.getMessage());
 
-        ErrorMessageResponse error = new ErrorMessageResponse(
-                "not_found",
-                "The requested file was not found.",
-                status.value()
-        );
-        return new ResponseEntity<>(error, status);
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of(
+                        "error", "File not found",
+                        "message", ex.getMessage()
+                ));
     }
 
     /**
-     * Handles all other uncaught Exception types (500 INTERNAL SERVER ERROR).
+     * Handle security exceptions
+     */
+    @ExceptionHandler(SecurityException.class)
+    public ResponseEntity<?> handleSecurityException(SecurityException ex) {
+        log.error("Security violation: {}", ex.getMessage());
+
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of(
+                        "error", "Access denied",
+                        "message", "You do not have permission to access this resource"
+                ));
+    }
+
+    /**
+     * Handle generic exceptions
      */
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<?> handleAllUncaughtException(Exception ex, WebRequest request) {
-        final HttpStatus status = HttpStatus.INTERNAL_SERVER_ERROR;
-        String message = ex.getMessage();
+    public ResponseEntity<?> handleGenericException(Exception ex) {
+        log.error("Unexpected error occurred", ex);
 
-        String finalMessage = request.getDescription(false).contains("/convert")
-                ? "Error during video conversion: " + message
-                : "An unexpected error occurred: " + message;
-
-        ErrorMessageResponse error = new ErrorMessageResponse(
-                "internal_server_error",
-                finalMessage,
-                status.value()
-        );
-
-        return new ResponseEntity<>(error, status);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of(
+                        "error", "Internal server error",
+                        "message", "An unexpected error occurred. Please try again later."
+                ));
     }
 }
