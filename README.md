@@ -9,7 +9,7 @@ Built on the bleeding edge of Java and Spring technology, it offers a rock-solid
 | :--- | :--- |
 | **Framework** | **Spring Boot 4** |
 | **Language** | **Java 25** |
-| **External Tool** | **`yt-dlp`** |
+| **External Tool** | **`yt-dlp`** **`ffmpeg`** |
 | **Architecture** | Service-oriented, Global Exception Handling |
 
 ## ⚙️ How It Works
