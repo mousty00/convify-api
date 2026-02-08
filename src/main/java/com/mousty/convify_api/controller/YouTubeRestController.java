@@ -12,7 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping("/v1")
 @Tag(name = "YouTube Converter", description = "API for converting YouTube videos")
 public class YouTubeRestController {
 
